@@ -2,49 +2,48 @@ pipeline {
     agent any
 
     stages {
-        stage ('Checkout'){
-            steps{
+
+        stage('Checkout') {
+            steps {
                 echo 'Checking out source code....'
 
                 sh '''
-                    echo "=====Workspace====="
+                    echo "===== Workspace ====="
                     pwd
 
-                    echo "=====List of files====="
+                    echo "===== List of files ====="
                     ls -ltra
-                    '''
-                    
+                '''
             }
         }
-        stage ('Build'){
-            steps{
+
+        stage('Build') {
+            steps {
                 echo 'Building the application....'
+
                 sh '''
-                    echo "=====Builld======"
+                    echo "===== Build ====="
                     echo "Building the application....."
                     echo "Build completed successfully....."
                 '''
-            
-                }
             }
-        stage ('Test'){
-            steps{
-                echo "Running the test cases....."}
+        }
+
+        stage('Test') {
+            steps {
+                echo "Running the test cases....."
+
                 sh '''
-                    echo "=====Test======"
-                    
+                    echo "===== Test ====="
+
                     if grep -q "Hello from my Jenkins Git Project" app.txt; then
-                    echo "Test cases passed successfully....."
-                    
+                        echo "Test cases passed successfully....."
                     else
-                    echo "Test cases failed.....expected text not found in the file"
-                    exit 1
+                        echo "Test cases failed..... expected text not found in the file"
+                        exit 1
                     fi
-                    '''
-                }
+                '''
             }
         }
     }
-
 }
-
