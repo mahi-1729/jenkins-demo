@@ -1,1 +1,1 @@
-Something completely different
+Hello from my Jenkins Git project - Version 2!!!
