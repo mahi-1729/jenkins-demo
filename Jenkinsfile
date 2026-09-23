@@ -36,7 +36,7 @@ pipeline {
                 sh '''
                     echo "===== Test ====="
 
-                    if grep -q "Hello from my Jenkins Git Project" app.txt; then
+                    if grep -q "Hello from my Jenkins Git project - Version 2!!!" app.txt; then
                         echo "Test cases passed successfully....."
                     else
                         echo "Test cases failed..... expected text not found in the file"
