@@ -5,43 +5,40 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                echo 'Checking out source code....'
+                echo 'Source code checked out by Jenkins.'
 
                 sh '''
-                    echo "===== Workspace ====="
+                    echo "===== WORKSPACE ====="
                     pwd
 
-                    echo "===== List of files ====="
-                    ls -ltra
+                    echo "===== FILES ====="
+                    find . -maxdepth 2 -type f | sort
                 '''
             }
         }
 
         stage('Build') {
             steps {
-                echo 'Building the application....'
+                echo 'Building Python application...'
 
                 sh '''
-                    echo "===== Build ====="
-                    echo "Building the application....."
-                    echo "Build completed successfully....."
+                    echo "===== BUILD ====="
+
+                    python3 -m py_compile app/main.py
+
+                    echo "Build validation successful."
                 '''
             }
         }
 
         stage('Test') {
             steps {
-                echo "Running the test cases....."
+                echo 'Running automated tests...'
 
                 sh '''
-                    echo "===== Test ====="
+                    echo "===== TEST ====="
 
-                    if grep -q "Hello from my Jenkins Git project" app.txt; then
-                        echo "Test cases passed successfully....."
-                    else
-                        echo "Test cases failed..... expected text not found in the file"
-                        exit 1
-                    fi
+                    pytest -v
                 '''
             }
         }
