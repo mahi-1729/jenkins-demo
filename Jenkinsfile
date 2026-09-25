@@ -24,9 +24,17 @@ pipeline {
                 sh '''
                     echo "===== BUILD ====="
 
+                    rm -rf build
+                    mkdir -p build
+
                     python3 -m py_compile app/main.py
 
-                    echo "Build validation successful."
+                    tar -czf build/jenkins-demo.tar.gz app tests
+
+                    echo "===== BUILD ARTIFACT ====="
+                    ls -lh build/
+
+                    echo "Build completed successfully."
                 '''
             }
         }
