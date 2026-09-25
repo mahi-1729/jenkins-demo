@@ -56,4 +56,11 @@ pipeline {
             }
         }
     }
+
+    post {
+        success {
+            archiveArtifacts artifacts: 'build/jenkins-demo.tar.gz',
+                             fingerprint: true
+        }
+    }
 }
