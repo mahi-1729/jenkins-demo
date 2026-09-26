@@ -73,6 +73,30 @@ stages {
             '''
         }
     }
+
+    stage('Docker Push'){
+        steps{
+            echo "Pushing Docker image to Docker Hub..."
+
+            withCredentials([
+                usernamePassword(credentialsId: 'dockerhub-creds', usernnameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD'
+                )
+            ]){
+                sh '''
+                    echo "===== DOCKER LOGIN ====="
+                    echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+
+                    echo "===== DOCKER PUSH ====="
+                    #docker tag jenkins-demo:1.0 $DOCKER_USERNAME/jenkins-demo:1.0
+                    #docker push kubemahi/jenkins-demo:1.0
+                    docker push $DOCKER_USERNAME/jenkins-demo:1.0
+
+                    echo "=======DOCKER LOGOUT======="
+                    docker logout
+                '''
+            }
+        }
+    }
 }
 
 post {
@@ -84,3 +108,4 @@ post {
 
 
 }
+
