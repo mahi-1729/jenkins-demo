@@ -1,87 +1,86 @@
 pipeline {
-    agent any
+agent any
 
-    stages {
+stages {
 
-        stage('Checkout') {
-            steps {
-                echo 'Source code checked out by Jenkins.'
+    stage('Checkout') {
+        steps {
+            echo 'Source code checked out by Jenkins.'
 
-                sh '''
-                    echo "===== WORKSPACE ====="
-                    pwd
+            sh '''
+                echo "===== WORKSPACE ====="
+                pwd
 
-                    echo "===== FILES ====="
-                    find . -maxdepth 2 -type f | sort
-                '''
-            }
-        }
-
-        stage('Build') {
-            steps {
-                echo 'Building Python application...'
-
-                sh '''
-                    echo "===== BUILD ====="
-
-                    rm -rf build
-                    mkdir -p build
-
-                    python3 -m py_compile app/main.py
-
-                    tar --exclude='__pycache__' \
-                        --exclude='*.pyc' \
-                        -czf build/jenkins-demo.tar.gz app tests
-
-                    echo "===== BUILD ARTIFACT ====="
-                    ls -lh build/
-
-                    echo "===== ARTIFACT CONTENTS ====="
-                    tar -tzf build/jenkins-demo.tar.gz
-
-                    echo "Build completed successfully."
-                '''
-            }
-        }
-
-        stage('Test') {
-            steps {
-                echo 'Running automated tests...'
-
-                sh '''
-                    echo "===== TEST ====="
-
-                    pytest -v
-                '''
-            }
+                echo "===== FILES ====="
+                find . -maxdepth 2 -type f | sort
+            '''
         }
     }
 
-        stage('Docker Build') {
-            steps {
-                echo 'Building Docker image...'
+    stage('Build') {
+        steps {
+            echo 'Building Python application...'
 
-                sh '''
+            sh '''
+                echo "===== BUILD ====="
 
-                    echo "===== DOCKER VERSION ====="
-                    docker --version
+                rm -rf build
+                mkdir -p build
 
-                    echo "===== DOCKER BUILD ====="
+                python3 -m py_compile app/main.py
 
-                    docker build -t jenkins-demo:1.0 .
+                tar --exclude='__pycache__' \
+                    --exclude='*.pyc' \
+                    -czf build/jenkins-demo.tar.gz app tests
 
-                    echo "===== DOCKER IMAGES ====="
-                    docker images
-                '''
-            }
+                echo "===== BUILD ARTIFACT ====="
+                ls -lh build/
+
+                echo "===== ARTIFACT CONTENTS ====="
+                tar -tzf build/jenkins-demo.tar.gz
+
+                echo "Build completed successfully."
+            '''
         }
+    }
 
+    stage('Test') {
+        steps {
+            echo 'Running automated tests...'
 
-    post {
-        success {
-            archiveArtifacts artifacts: 'build/jenkins-demo.tar.gz',
-                             fingerprint: true
+            sh '''
+                echo "===== TEST ====="
+
+                pytest -v
+            '''
+        }
+    }
+
+    stage('Docker Build') {
+        steps {
+            echo 'Building Docker image...'
+
+            sh '''
+                echo "===== DOCKER VERSION ====="
+                docker --version
+
+                echo "===== DOCKER BUILD ====="
+
+                docker build -t jenkins-demo:1.0 .
+
+                echo "===== DOCKER IMAGES ====="
+                docker images
+            '''
         }
     }
 }
 
+post {
+    success {
+        archiveArtifacts artifacts: 'build/jenkins-demo.tar.gz',
+                         fingerprint: true
+    }
+}
+
+
+}
