@@ -57,6 +57,26 @@ pipeline {
         }
     }
 
+        stage ('Docker Build') {
+            steps {
+                echo 'Building Docker image...'
+
+                sh '''
+
+                    echo "===== DOCKER VERSION ====="
+                    docker --version
+
+                    echo "===== DOCKER BUILD ====="
+
+                    docker build -t jenkins-demo:1.0 .
+
+                    echo "===== DOCKER IMAGES ====="
+                    docker images
+                '''
+            }
+        }
+
+
     post {
         success {
             archiveArtifacts artifacts: 'build/jenkins-demo.tar.gz',
@@ -64,3 +84,4 @@ pipeline {
         }
     }
 }
+
