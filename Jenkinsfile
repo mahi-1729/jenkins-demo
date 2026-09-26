@@ -79,7 +79,7 @@ stages {
             echo "Pushing Docker image to Docker Hub..."
 
             withCredentials([
-                usernamePassword(credentialsId: 'dockerhub-creds', usernnameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD'
+                usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD'
                 )
             ]){
                 sh '''
