@@ -29,6 +29,7 @@ pipeline {
             }
         }
 
+
         stage('Build') {
             steps {
 
@@ -62,6 +63,7 @@ pipeline {
                 '''
             }
         }
+
 
         stage('Test') {
             steps {
@@ -99,6 +101,7 @@ pipeline {
             }
         }
 
+
         stage('Docker Build') {
             steps {
 
@@ -111,9 +114,11 @@ pipeline {
 
                     docker --version
 
+
                     echo "===== JENKINS BUILD NUMBER ====="
 
                     echo "$BUILD_NUMBER"
+
 
                     echo "===== GIT COMMIT ====="
 
@@ -121,11 +126,13 @@ pipeline {
 
                     echo "$GIT_COMMIT_SHA"
 
+
                     echo "===== SHORT GIT COMMIT ====="
 
                     GIT_SHORT_SHA=$(git rev-parse --short=8 HEAD)
 
                     echo "$GIT_SHORT_SHA"
+
 
                     echo "===== BUILDING DOCKER IMAGE ====="
 
@@ -133,11 +140,13 @@ pipeline {
                         -t jenkins-demo:$BUILD_NUMBER \
                         .
 
+
                     echo "===== TAGGING BUILD NUMBER ====="
 
                     docker tag \
                         jenkins-demo:$BUILD_NUMBER \
                         kubemahi/jenkins-demo:$BUILD_NUMBER
+
 
                     echo "===== TAGGING GIT COMMIT ====="
 
@@ -145,10 +154,12 @@ pipeline {
                         jenkins-demo:$BUILD_NUMBER \
                         kubemahi/jenkins-demo:$GIT_SHORT_SHA
 
+
                     echo "===== DOCKER IMAGES ====="
 
                     docker images | grep -E \
                         'jenkins-demo|REPOSITORY'
+
 
                     echo "===== IMAGE TAGS CREATED ====="
 
@@ -160,6 +171,7 @@ pipeline {
                 '''
             }
         }
+
 
         stage('Docker Push') {
             steps {
@@ -187,6 +199,7 @@ pipeline {
 
                         echo "Docker login successful."
 
+
                         echo "===== GET GIT COMMIT ====="
 
                         GIT_SHORT_SHA=$(git rev-parse --short=8 HEAD)
@@ -194,17 +207,21 @@ pipeline {
                         echo "Git commit tag: $GIT_SHORT_SHA"
                         echo "Build number tag: $BUILD_NUMBER"
 
+
                         echo "===== PUSH BUILD NUMBER TAG ====="
 
                         docker push \
                             kubemahi/jenkins-demo:$BUILD_NUMBER
+
 
                         echo "===== PUSH GIT COMMIT TAG ====="
 
                         docker push \
                             kubemahi/jenkins-demo:$GIT_SHORT_SHA
 
+
                         echo "===== DOCKER PUSH COMPLETED ====="
+
 
                         echo "===== DOCKER LOGOUT ====="
 
@@ -216,6 +233,7 @@ pipeline {
             }
         }
 
+
         stage('Deploy') {
             steps {
 
@@ -223,78 +241,104 @@ pipeline {
                 echo '                DEPLOY'
                 echo '========================================'
 
-                sshagent(credentials: ['rocky-deploy-key']) {
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'rocky-deploy-key',
+                        keyFileVariable: 'SSH_KEY',
+                        usernameVariable: 'SSH_USER'
+                    )
+                ]) {
 
                     sh '''
+
                         echo "===== DEPLOYMENT INFORMATION ====="
 
                         echo "Target Server: 192.168.177.128"
                         echo "Container Name: jenkins-demo-web"
                         echo "Docker Image: kubemahi/jenkins-demo:$BUILD_NUMBER"
 
+
                         echo "===== VERIFY SSH CONNECTION ====="
 
-                        ssh deploy@192.168.177.128 \
+                        ssh \
+                            -i "$SSH_KEY" \
+                            "$SSH_USER"@192.168.177.128 \
                             'echo "Connected to deployment server"; whoami; hostname'
+
 
                         echo "===== DEPLOY APPLICATION ====="
 
-                        ssh deploy@192.168.177.128 "
-                            set -e
+                        ssh \
+                            -i "$SSH_KEY" \
+                            "$SSH_USER"@192.168.177.128 \
+                            "BUILD_NUMBER=$BUILD_NUMBER bash -s" <<'REMOTE_SCRIPT'
 
-                            echo '===== PULL NEW IMAGE ====='
+set -e
 
-                            docker pull \
-                                kubemahi/jenkins-demo:$BUILD_NUMBER
 
-                            echo '===== REMOVE OLD CONTAINER ====='
+echo "===== PULL NEW IMAGE ====="
 
-                            docker rm -f \
-                                jenkins-demo-web \
-                                2>/dev/null || true
+docker pull \
+    kubemahi/jenkins-demo:$BUILD_NUMBER
 
-                            echo '===== START NEW CONTAINER ====='
 
-                            docker run -d \
-                                --name jenkins-demo-web \
-                                -p 5000:5000 \
-                                kubemahi/jenkins-demo:$BUILD_NUMBER
+echo "===== REMOVE OLD CONTAINER ====="
 
-                            echo '===== RUNNING CONTAINERS ====='
+docker rm -f \
+    jenkins-demo-web \
+    2>/dev/null || true
 
-                            docker ps
 
-                            echo '===== WAITING FOR APPLICATION ====='
+echo "===== START NEW CONTAINER ====="
 
-                            for attempt in 1 2 3 4 5
-                            do
-                                echo \"Health check attempt: \$attempt\"
+docker run -d \
+    --name jenkins-demo-web \
+    -p 5000:5000 \
+    kubemahi/jenkins-demo:$BUILD_NUMBER
 
-                                if curl -fsS \
-                                    http://localhost:5000/health
-                                then
-                                    echo
-                                    echo 'Application health check passed.'
-                                    exit 0
-                                fi
 
-                                sleep 3
-                            done
+echo "===== RUNNING CONTAINERS ====="
 
-                            echo '===== HEALTH CHECK FAILED ====='
+docker ps
 
-                            echo 'Container logs:'
 
-                            docker logs \
-                                jenkins-demo-web
+echo "===== WAITING FOR APPLICATION ====="
 
-                            exit 1
-                        "
+for attempt in 1 2 3 4 5
+do
+
+    echo "Health check attempt: $attempt"
+
+    if curl -fsS \
+        http://localhost:5000/health
+    then
+
+        echo
+        echo "Application health check passed."
+
+        exit 0
+    fi
+
+    sleep 3
+done
+
+
+echo "===== HEALTH CHECK FAILED ====="
+
+echo "Container logs:"
+
+docker logs \
+    jenkins-demo-web
+
+exit 1
+
+REMOTE_SCRIPT
                     '''
                 }
             }
         }
     }
+
 
     post {
 
@@ -312,6 +356,7 @@ pipeline {
                 fingerprint: true
         }
 
+
         failure {
 
             echo '========================================'
@@ -320,6 +365,7 @@ pipeline {
 
             echo 'Check the failed stage and console output.'
         }
+
 
         always {
 
