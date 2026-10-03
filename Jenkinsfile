@@ -1,3 +1,4 @@
+
 pipeline {
     agent any
 
@@ -17,6 +18,9 @@ pipeline {
 
                     echo "===== FILES ====="
                     find . -maxdepth 2 -type f | sort
+
+                    echo "===== GIT COMMIT ====="
+                    git rev-parse HEAD
                 '''
             }
         }
@@ -89,25 +93,47 @@ pipeline {
                     echo "===== DOCKER VERSION ====="
                     docker --version
 
-                    echo "===== DOCKER INFO ====="
-                    docker info | head -30
+                    echo "===== JENKINS BUILD NUMBER ====="
+                    echo "$BUILD_NUMBER"
 
-                    echo "===== BUILDING IMAGE ====="
+                    echo "===== GIT COMMIT ====="
+                    GIT_COMMIT_SHA=$(git rev-parse HEAD)
+                    echo "$GIT_COMMIT_SHA"
+
+                    echo "===== SHORT GIT COMMIT ====="
+                    GIT_SHORT_SHA=$(git rev-parse --short=8 HEAD)
+                    echo "$GIT_SHORT_SHA"
+
+                    echo "===== BUILDING DOCKER IMAGE ====="
 
                     docker build \
-                        -t jenkins-demo:1.0 \
+                        -t jenkins-demo:$BUILD_NUMBER \
                         .
 
-                    echo "===== TAGGING IMAGE ====="
+                    echo "===== TAGGING BUILD NUMBER ====="
 
                     docker tag \
-                        jenkins-demo:1.0 \
-                        kubemahi/jenkins-demo:1.0
+                        jenkins-demo:$BUILD_NUMBER \
+                        kubemahi/jenkins-demo:$BUILD_NUMBER
+
+                    echo "===== TAGGING GIT COMMIT ====="
+
+                    docker tag \
+                        jenkins-demo:$BUILD_NUMBER \
+                        kubemahi/jenkins-demo:$GIT_SHORT_SHA
 
                     echo "===== DOCKER IMAGES ====="
 
                     docker images | grep -E \
                         'jenkins-demo|REPOSITORY'
+
+                    echo "===== IMAGE TAGS CREATED ====="
+
+                    echo "Build Number Tag:"
+                    echo "kubemahi/jenkins-demo:$BUILD_NUMBER"
+
+                    echo "Git Commit Tag:"
+                    echo "kubemahi/jenkins-demo:$GIT_SHORT_SHA"
                 '''
             }
         }
@@ -119,7 +145,7 @@ pipeline {
         stage('Docker Push') {
             steps {
                 echo '===== DOCKER PUSH ====='
-                echo 'Logging into Docker Hub and pushing image...'
+                echo 'Logging into Docker Hub and pushing images...'
 
                 withCredentials([
                     usernamePassword(
@@ -140,11 +166,29 @@ pipeline {
 
                         echo "Docker login successful."
 
-                        echo "===== DOCKER PUSH ====="
 
-                        docker push kubemahi/jenkins-demo:1.0
+                        echo "===== GET GIT COMMIT ====="
+
+                        GIT_SHORT_SHA=$(git rev-parse --short=8 HEAD)
+
+                        echo "Git commit tag: $GIT_SHORT_SHA"
+                        echo "Build number tag: $BUILD_NUMBER"
+
+
+                        echo "===== PUSH BUILD NUMBER TAG ====="
+
+                        docker push \
+                            kubemahi/jenkins-demo:$BUILD_NUMBER
+
+
+                        echo "===== PUSH GIT COMMIT TAG ====="
+
+                        docker push \
+                            kubemahi/jenkins-demo:$GIT_SHORT_SHA
+
 
                         echo "===== DOCKER PUSH COMPLETED ====="
+
 
                         echo "===== DOCKER LOGOUT ====="
 
@@ -168,7 +212,8 @@ pipeline {
             echo '        PIPELINE SUCCESSFUL'
             echo '========================================'
 
-            echo 'Build artifact will be archived.'
+            echo "Docker image:"
+            echo "kubemahi/jenkins-demo:${BUILD_NUMBER}"
 
             archiveArtifacts artifacts: 'build/jenkins-demo.tar.gz',
                              fingerprint: true
@@ -189,3 +234,4 @@ pipeline {
         }
     }
 }
+
