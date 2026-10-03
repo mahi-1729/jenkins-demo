@@ -1,108 +1,138 @@
-
 pipeline {
+
     agent any
 
     stages {
 
-        // =========================================================
-        // 1. CHECKOUT
-        // =========================================================
         stage('Checkout') {
             steps {
-                echo '===== CHECKOUT ====='
-                echo 'Source code checked out by Jenkins.'
+
+                echo '========================================'
+                echo '              CHECKOUT'
+                echo '========================================'
+
+                checkout scm
 
                 sh '''
-                    echo "===== WORKSPACE ====="
+                    echo "===== CURRENT DIRECTORY ====="
                     pwd
 
                     echo "===== FILES ====="
-                    find . -maxdepth 2 -type f | sort
+                    ls -la
 
                     echo "===== GIT COMMIT ====="
                     git rev-parse HEAD
+
+                    echo "===== GIT SHORT COMMIT ====="
+                    git rev-parse --short=8 HEAD
                 '''
             }
         }
 
 
-        // =========================================================
-        // 2. BUILD
-        // =========================================================
         stage('Build') {
             steps {
-                echo '===== BUILD ====='
-                echo 'Building Python application...'
+
+                echo '========================================'
+                echo '                BUILD'
+                echo '========================================'
 
                 sh '''
-                    rm -rf build
-                    mkdir -p build
-
-                    echo "===== PYTHON CHECK ====="
+                    echo "===== PYTHON VERSION ====="
                     python3 --version
 
-                    echo "===== PYTHON COMPILE ====="
-                    python3 -m py_compile app/main.py
+                    echo "===== PROJECT FILES ====="
+                    find . -maxdepth 2 -type f | sort
 
                     echo "===== CREATING BUILD ARTIFACT ====="
 
-                    tar --exclude='__pycache__' \
-                        --exclude='*.pyc' \
-                        -czf build/jenkins-demo.tar.gz app tests
+                    mkdir -p build
+
+                    tar \
+                        --exclude='./build' \
+                        --exclude='./.git' \
+                        -czf build/jenkins-demo.tar.gz \
+                        app \
+                        tests \
+                        Dockerfile \
+                        requirements.txt
 
                     echo "===== BUILD ARTIFACT ====="
+
                     ls -lh build/
-
-                    echo "===== ARTIFACT CONTENTS ====="
-                    tar -tzf build/jenkins-demo.tar.gz
-
-                    echo "Build completed successfully."
                 '''
             }
         }
 
 
-        // =========================================================
-        // 3. TEST
-        // =========================================================
         stage('Test') {
             steps {
-                echo '===== TEST ====='
-                echo 'Running automated tests...'
+
+                echo '========================================'
+                echo '                 TEST'
+                echo '========================================'
 
                 sh '''
+                    echo "===== CREATE PYTHON VIRTUAL ENVIRONMENT ====="
+
+                    python3 -m venv .venv
+
+                    echo "===== INSTALL DEPENDENCIES ====="
+
+                    .venv/bin/python -m pip install --upgrade pip
+
+                    .venv/bin/python -m pip install \
+                        -r requirements.txt
+
+                    .venv/bin/python -m pip install pytest
+
+                    echo "===== PYTHON VERSION ====="
+
+                    .venv/bin/python --version
+
                     echo "===== PYTEST VERSION ====="
-                    pytest --version
+
+                    .venv/bin/python -m pytest --version
 
                     echo "===== RUNNING TESTS ====="
-                    pytest -v
+
+                    .venv/bin/python -m pytest -v
                 '''
             }
         }
 
 
-        // =========================================================
-        // 4. DOCKER BUILD
-        // =========================================================
         stage('Docker Build') {
             steps {
-                echo '===== DOCKER BUILD ====='
-                echo 'Building Docker image...'
+
+                echo '========================================'
+                echo '             DOCKER BUILD'
+                echo '========================================'
 
                 sh '''
                     echo "===== DOCKER VERSION ====="
+
                     docker --version
 
+
                     echo "===== JENKINS BUILD NUMBER ====="
+
                     echo "$BUILD_NUMBER"
 
+
                     echo "===== GIT COMMIT ====="
+
                     GIT_COMMIT_SHA=$(git rev-parse HEAD)
+
                     echo "$GIT_COMMIT_SHA"
 
+
                     echo "===== SHORT GIT COMMIT ====="
+
                     GIT_SHORT_SHA=$(git rev-parse --short=8 HEAD)
+
                     echo "$GIT_SHORT_SHA"
+
 
                     echo "===== BUILDING DOCKER IMAGE ====="
 
@@ -110,11 +140,13 @@ pipeline {
                         -t jenkins-demo:$BUILD_NUMBER \
                         .
 
+
                     echo "===== TAGGING BUILD NUMBER ====="
 
                     docker tag \
                         jenkins-demo:$BUILD_NUMBER \
                         kubemahi/jenkins-demo:$BUILD_NUMBER
+
 
                     echo "===== TAGGING GIT COMMIT ====="
 
@@ -122,10 +154,12 @@ pipeline {
                         jenkins-demo:$BUILD_NUMBER \
                         kubemahi/jenkins-demo:$GIT_SHORT_SHA
 
+
                     echo "===== DOCKER IMAGES ====="
 
                     docker images | grep -E \
                         'jenkins-demo|REPOSITORY'
+
 
                     echo "===== IMAGE TAGS CREATED ====="
 
@@ -139,13 +173,12 @@ pipeline {
         }
 
 
-        // =========================================================
-        // 5. DOCKER PUSH
-        // =========================================================
         stage('Docker Push') {
             steps {
-                echo '===== DOCKER PUSH ====='
-                echo 'Logging into Docker Hub and pushing images...'
+
+                echo '========================================'
+                echo '              DOCKER PUSH'
+                echo '========================================'
 
                 withCredentials([
                     usernamePassword(
@@ -172,6 +205,7 @@ pipeline {
                         GIT_SHORT_SHA=$(git rev-parse --short=8 HEAD)
 
                         echo "Git commit tag: $GIT_SHORT_SHA"
+
                         echo "Build number tag: $BUILD_NUMBER"
 
 
@@ -202,12 +236,10 @@ pipeline {
     }
 
 
-    // =============================================================
-    // POST ACTIONS
-    // =============================================================
     post {
 
         success {
+
             echo '========================================'
             echo '        PIPELINE SUCCESSFUL'
             echo '========================================'
@@ -215,11 +247,14 @@ pipeline {
             echo "Docker image:"
             echo "kubemahi/jenkins-demo:${BUILD_NUMBER}"
 
-            archiveArtifacts artifacts: 'build/jenkins-demo.tar.gz',
-                             fingerprint: true
+            archiveArtifacts \
+                artifacts: 'build/jenkins-demo.tar.gz',
+                fingerprint: true
         }
 
+
         failure {
+
             echo '========================================'
             echo '          PIPELINE FAILED'
             echo '========================================'
@@ -227,11 +262,12 @@ pipeline {
             echo 'Check the failed stage and console output.'
         }
 
+
         always {
+
             echo '========================================'
             echo '         PIPELINE FINISHED'
             echo '========================================'
         }
     }
 }
-

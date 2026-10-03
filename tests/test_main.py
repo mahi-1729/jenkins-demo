@@ -1,14 +1,31 @@
 import sys
 import os
 
-sys.path.insert(0, os.path.abspath("app"))
+sys.path.insert(
+    0,
+    os.path.abspath("app")
+)
 
-from main import add, get_message
+from main import app
 
 
-def test_add():
-    assert add(2, 3) == 5
+def test_home():
+
+    client = app.test_client()
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    assert b"Hello from Jenkins CI/CD" in response.data
 
 
-def test_message():
-    assert get_message() == "Hello from Jenkins CI!"
+def test_health():
+
+    client = app.test_client()
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+
+    assert response.json["status"] == "UP"
