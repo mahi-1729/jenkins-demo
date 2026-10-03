@@ -2,6 +2,10 @@ pipeline {
 
     agent any
 
+    options {
+        skipDefaultCheckout(true)
+    }
+
     stages {
 
         stage('Checkout') {
@@ -255,7 +259,7 @@ pipeline {
 
                         echo "Target Server: 192.168.177.128"
                         echo "Container Name: jenkins-demo-web"
-                        echo "Docker Image: kubemahi/jenkins-demo:$BUILD_NUMBER"
+                        echo "New Image: kubemahi/jenkins-demo:$BUILD_NUMBER"
 
 
                         echo "===== VERIFY SSH CONNECTION ====="
@@ -276,33 +280,60 @@ pipeline {
 set -e
 
 
+CONTAINER_NAME="jenkins-demo-web"
+NEW_IMAGE="kubemahi/jenkins-demo:$BUILD_NUMBER"
+
+
+echo "===== CURRENT DEPLOYMENT ====="
+
+OLD_IMAGE=$(docker inspect \
+    --format='{{.Config.Image}}' \
+    "$CONTAINER_NAME" \
+    2>/dev/null || true)
+
+
+if [ -n "$OLD_IMAGE" ]
+then
+
+    echo "Current image: $OLD_IMAGE"
+
+else
+
+    echo "No existing container found."
+
+fi
+
+
 echo "===== PULL NEW IMAGE ====="
 
-docker pull \
-    kubemahi/jenkins-demo:$BUILD_NUMBER
+docker pull "$NEW_IMAGE"
 
 
 echo "===== REMOVE OLD CONTAINER ====="
 
 docker rm -f \
-    jenkins-demo-web \
+    "$CONTAINER_NAME" \
     2>/dev/null || true
 
 
 echo "===== START NEW CONTAINER ====="
 
 docker run -d \
-    --name jenkins-demo-web \
+    --name "$CONTAINER_NAME" \
     -p 5000:5000 \
-    kubemahi/jenkins-demo:$BUILD_NUMBER
+    "$NEW_IMAGE"
 
 
 echo "===== RUNNING CONTAINERS ====="
 
-docker ps
+docker ps \
+    --filter "name=$CONTAINER_NAME"
 
 
-echo "===== WAITING FOR APPLICATION ====="
+echo "===== WAIT FOR APPLICATION ====="
+
+DEPLOY_OK=false
+
 
 for attempt in 1 2 3 4 5
 do
@@ -316,21 +347,126 @@ do
         echo
         echo "Application health check passed."
 
-        exit 0
+        DEPLOY_OK=true
+
+        break
     fi
 
     sleep 3
+
 done
 
 
-echo "===== HEALTH CHECK FAILED ====="
+if [ "$DEPLOY_OK" = "true" ]
+then
 
-echo "Container logs:"
+    echo "===== DEPLOYMENT SUCCESSFUL ====="
+
+    echo "Running image: $NEW_IMAGE"
+
+    docker ps \
+        --filter "name=$CONTAINER_NAME"
+
+    exit 0
+
+fi
+
+
+echo "===== DEPLOYMENT FAILED ====="
+
+echo "New application failed health checks."
+
+
+echo "===== FAILED CONTAINER LOGS ====="
 
 docker logs \
-    jenkins-demo-web
+    "$CONTAINER_NAME" \
+    || true
+
+
+echo "===== REMOVE FAILED CONTAINER ====="
+
+docker rm -f \
+    "$CONTAINER_NAME" \
+    2>/dev/null || true
+
+
+if [ -n "$OLD_IMAGE" ]
+then
+
+    echo "===== ROLLBACK STARTED ====="
+
+    echo "Previous image: $OLD_IMAGE"
+
+    docker run -d \
+        --name "$CONTAINER_NAME" \
+        -p 5000:5000 \
+        "$OLD_IMAGE"
+
+
+    echo "===== WAIT FOR ROLLBACK APPLICATION ====="
+
+    ROLLBACK_OK=false
+
+
+    for attempt in 1 2 3 4 5
+    do
+
+        echo "Rollback health check attempt: $attempt"
+
+        if curl -fsS \
+            http://localhost:5000/health
+        then
+
+            echo
+            echo "Rollback health check passed."
+
+            ROLLBACK_OK=true
+
+            break
+        fi
+
+        sleep 3
+
+    done
+
+
+    if [ "$ROLLBACK_OK" = "true" ]
+    then
+
+        echo "===== ROLLBACK SUCCESSFUL ====="
+
+        echo "Restored image: $OLD_IMAGE"
+
+        docker ps \
+            --filter "name=$CONTAINER_NAME"
+
+    else
+
+        echo "===== ROLLBACK FAILED ====="
+
+        echo "Previous application also failed health checks."
+
+        docker logs \
+            "$CONTAINER_NAME" \
+            || true
+
+    fi
+
+
+else
+
+    echo "===== ROLLBACK NOT POSSIBLE ====="
+
+    echo "No previous image was available."
+
+fi
+
+
+echo "===== DEPLOYMENT MARKED FAILED ====="
 
 exit 1
+
 
 REMOTE_SCRIPT
                     '''
